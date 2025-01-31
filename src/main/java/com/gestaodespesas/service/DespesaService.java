@@ -14,18 +14,27 @@ public class DespesaService {
     @Autowired
     private DespesaRepository despesaRepository;
 
-    // Método para obter todas as despesas
-    public List<Despesas> listarDespesas() {
+    public List<Despesas> listarTodas() {
         return despesaRepository.findAll();
     }
 
-    // Método para salvar uma despesa
-    public Despesas salvarDespesa(Despesas despesa) {
+    public Optional<Despesas> buscarPorId(Long id) {
+        return despesaRepository.findById(id);
+    }
+
+    public Despesas salvar(Despesas despesa) {
         return despesaRepository.save(despesa);
     }
 
-    // Método para buscar uma despesa por id
-    public Optional<Despesas> buscarDespesaPorId(Long id) {
-        return despesaRepository.findById(id);
+    public Despesas atualizar(Long id, Despesas despesa) {
+        if (!despesaRepository.existsById(id)) {
+            throw new RuntimeException("Despesa não encontrada");
+        }
+        despesa.setId(id);
+        return despesaRepository.save(despesa);
+    }
+
+    public void deletar(Long id) {
+        despesaRepository.deleteById(id);
     }
 }

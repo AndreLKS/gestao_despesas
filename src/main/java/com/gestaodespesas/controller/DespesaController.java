@@ -3,33 +3,43 @@ package com.gestaodespesas.controller;
 import com.gestaodespesas.model.Despesas;
 import com.gestaodespesas.service.DespesaService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/despesas")
+@RequestMapping("/despesas")
 public class DespesaController {
 
     @Autowired
     private DespesaService despesaService;
 
-    // Endpoint para listar todas as despesas
     @GetMapping
-    public List<Despesas> listarDespesas() {
-        return despesaService.listarDespesas();
+    public List<Despesas> listarTodas() {
+        return despesaService.listarTodas();
     }
 
-    // Endpoint para salvar uma despesa
-    @PostMapping
-    public Despesas salvarDespesa(@RequestBody Despesas despesa) {
-        return despesaService.salvarDespesa(despesa);
-    }
-
-    // Endpoint para buscar uma despesa por id
     @GetMapping("/{id}")
-    public Optional<Despesas> buscarDespesaPorId(@PathVariable Long id) {
-        return despesaService.buscarDespesaPorId(id);
+    public ResponseEntity<Despesas> buscarPorId(@PathVariable Long id) {
+        Optional<Despesas> despesa = despesaService.buscarPorId(id);
+        return despesa.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public Despesas criar(@RequestBody Despesas despesa) {
+        return despesaService.salvar(despesa);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Despesas> atualizar(@PathVariable Long id, @RequestBody Despesas despesa) {
+        return ResponseEntity.ok(despesaService.atualizar(id, despesa));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+        despesaService.deletar(id);
+        return ResponseEntity.noContent().build();
     }
 }
