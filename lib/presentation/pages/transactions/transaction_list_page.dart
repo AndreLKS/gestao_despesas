@@ -1,29 +1,239 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gestao_despesas/presentation/pages/dashboard/dashboard_page.dart';
+
+import '../../../data/models/transaction_model.dart';  // Ajuste caminho conforme sua estrutura
 import '../../providers/transaction_provider.dart';
 import 'transaction_form.dart';
 
-class TransactionListPage extends ConsumerWidget {
+enum PeriodFilter { hoje, mes, ano, todos }
+
+class TransactionListPage extends ConsumerStatefulWidget {
   const TransactionListPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TransactionListPage> createState() =>
+      _TransactionListPageState();
+}
+
+class _TransactionListPageState extends ConsumerState<TransactionListPage> {
+  PeriodFilter _selectedPeriodFilter = PeriodFilter.todos;
+
+  String? _selectedCategory; // null significa sem filtro
+  String? _selectedType; // 'receita', 'despesa' ou null para todos
+  double? _minValue;
+  double? _maxValue;
+
+  final _minValueController = TextEditingController();
+  final _maxValueController = TextEditingController();
+
+  @override
+  void dispose() {
+    _minValueController.dispose();
+    _maxValueController.dispose();
+    super.dispose();
+  }
+
+  List<TransactionModel> _filterTransactions(List<TransactionModel> transactions) {
+    final now = DateTime.now();
+
+    return transactions.where((t) {
+      // filtro período
+      bool matchesPeriod = false;
+      switch (_selectedPeriodFilter) {
+        case PeriodFilter.hoje:
+          matchesPeriod = t.date.year == now.year &&
+              t.date.month == now.month &&
+              t.date.day == now.day;
+          break;
+        case PeriodFilter.mes:
+          matchesPeriod = t.date.year == now.year && t.date.month == now.month;
+          break;
+        case PeriodFilter.ano:
+          matchesPeriod = t.date.year == now.year;
+          break;
+        case PeriodFilter.todos:
+          matchesPeriod = true;
+          break;
+      }
+      if (!matchesPeriod) return false;
+
+      // filtro categoria
+      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+        if (t.category != _selectedCategory) return false;
+      }
+
+      // filtro tipo
+      if (_selectedType != null && _selectedType!.isNotEmpty) {
+        if (t.type != _selectedType) return false;
+      }
+
+      // filtro valor
+      if (_minValue != null && t.amount < _minValue!) return false;
+      if (_maxValue != null && t.amount > _maxValue!) return false;
+
+      return true;
+    }).toList();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedPeriodFilter = PeriodFilter.todos;
+      _selectedCategory = null;
+      _selectedType = null;
+      _minValue = null;
+      _maxValue = null;
+      _minValueController.clear();
+      _maxValueController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final transactions = ref.watch(transactionProvider);
 
-    final receita = transactions
+    final filteredTransactions = _filterTransactions(transactions);
+
+    final receita = filteredTransactions
         .where((e) => e.type == 'receita')
         .fold(0.0, (a, b) => a + b.amount);
 
-    final despesa = transactions
+    final despesa = filteredTransactions
         .where((e) => e.type == 'despesa')
         .fold(0.0, (a, b) => a + b.amount);
 
     final saldo = receita - despesa;
 
+  
+    final categories = <String>[
+        'Geral',
+        'Alimentação',
+        'Lazer',
+        'Salário',
+        'Moradia',
+        'Transporte',
+        'Educação',
+        'Saúde',
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Gestão de Despesas')),
+      appBar: AppBar(
+        title: const Text('Gestão de Despesas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.pie_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DashboardPage()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.clear_all),
+            tooltip: 'Limpar filtros',
+            onPressed: _clearFilters,
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          // Filtro período
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Wrap(
+              spacing: 8,
+              children: PeriodFilter.values.map((filter) {
+                final label = filter.name[0].toUpperCase() + filter.name.substring(1);
+                return FilterChip(
+                  label: Text(label),
+                  selected: _selectedPeriodFilter == filter,
+                  onSelected: (_) => setState(() => _selectedPeriodFilter = filter),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // Filtros avançados
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                // Categoria
+                DropdownButton<String>(
+                  value: _selectedCategory ?? '',
+                  items: categories
+                      .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c.isEmpty ? 'Todas Categorias' : c),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedCategory = value == '' ? null : value;
+                    });
+                  },
+                ),
+
+                // Tipo
+                DropdownButton<String>(
+                  value: _selectedType ?? '',
+                  items: const [
+                    DropdownMenuItem(value: '', child: Text('Todos Tipos')),
+                    DropdownMenuItem(value: 'receita', child: Text('Receita')),
+                    DropdownMenuItem(value: 'despesa', child: Text('Despesa')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedType = value == '' ? null : value;
+                    });
+                  },
+                ),
+
+                // Min Valor
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _minValueController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Valor Mín',
+                      isDense: true,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _minValue = double.tryParse(value);
+                      });
+                    },
+                  ),
+                ),
+
+                // Max Valor
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _maxValueController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Valor Máx',
+                      isDense: true,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _maxValue = double.tryParse(value);
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           Card(
             margin: const EdgeInsets.all(8),
             child: ListTile(
@@ -31,29 +241,37 @@ class TransactionListPage extends ConsumerWidget {
               subtitle: Text('R\$ ${saldo.toStringAsFixed(2)}'),
             ),
           ),
+
           Expanded(
-            child: ListView.builder(
-              itemCount: transactions.length,
-              itemBuilder: (_, index) {
-                final tx = transactions[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(tx.title),
-                    subtitle: Text(
-                        '${tx.category} - ${tx.date.toLocal().toString().split(' ')[0]}'),
-                    trailing: Text(
-                      'R\$ ${tx.amount.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: tx.type == 'despesa' ? Colors.red : Colors.green,
-                      ),
-                    ),
-                    onLongPress: () {
-                      ref.read(transactionProvider.notifier).delete(tx.id);
+            child: filteredTransactions.isEmpty
+                ? const Center(child: Text('Nenhuma transação encontrada'))
+                : ListView.builder(
+                    itemCount: filteredTransactions.length,
+                    itemBuilder: (_, index) {
+                      final tx = filteredTransactions[index];
+                      return Card(
+                        child: ListTile(
+                          title: Text(tx.title),
+                          subtitle: Text(
+                              '${tx.category} - ${DateFormat('dd/MM/yyyy').format(tx.date)}'),
+                          trailing: Text(
+                            'R\$ ${tx.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: tx.type == 'despesa'
+                                  ? Colors.red
+                                  : Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onLongPress: () {
+                            ref
+                                .read(transactionProvider.notifier)
+                                .delete(tx.id);
+                          },
+                        ),
+                      );
                     },
                   ),
-                );
-              },
-            ),
           )
         ],
       ),
