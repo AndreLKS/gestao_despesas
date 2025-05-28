@@ -7,7 +7,7 @@ import '../../../data/models/transaction_model.dart';  // Ajuste caminho conform
 import '../../providers/transaction_provider.dart';
 import 'transaction_form.dart';
 
-enum PeriodFilter { hoje, mes, ano, todos }
+enum PeriodFilter { hoje, semana, mes, todos }
 
 class TransactionListPage extends ConsumerStatefulWidget {
   const TransactionListPage({super.key});
@@ -20,8 +20,8 @@ class TransactionListPage extends ConsumerStatefulWidget {
 class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   PeriodFilter _selectedPeriodFilter = PeriodFilter.todos;
 
-  String? _selectedCategory; // null significa sem filtro
-  String? _selectedType; // 'receita', 'despesa' ou null para todos
+  String? _selectedCategory; // null significa sem filtro (Geral)
+  String? _selectedType; // null significa sem filtro (todos tipos)
   double? _minValue;
   double? _maxValue;
 
@@ -43,15 +43,15 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
       bool matchesPeriod = false;
       switch (_selectedPeriodFilter) {
         case PeriodFilter.hoje:
-          matchesPeriod = t.date.year == now.year &&
-              t.date.month == now.month &&
-              t.date.day == now.day;
+          matchesPeriod =
+              t.date.year == now.year && t.date.month == now.month && t.date.day == now.day;
+          break;
+        case PeriodFilter.semana:
+          final weekAgo = now.subtract(const Duration(days: 7));
+          matchesPeriod = t.date.isAfter(weekAgo);
           break;
         case PeriodFilter.mes:
           matchesPeriod = t.date.year == now.year && t.date.month == now.month;
-          break;
-        case PeriodFilter.ano:
-          matchesPeriod = t.date.year == now.year;
           break;
         case PeriodFilter.todos:
           matchesPeriod = true;
@@ -60,17 +60,19 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
       if (!matchesPeriod) return false;
 
       // filtro categoria
-      if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+      if (_selectedCategory != null) {
         if (t.category != _selectedCategory) return false;
       }
 
       // filtro tipo
-      if (_selectedType != null && _selectedType!.isNotEmpty) {
+      if (_selectedType != null) {
         if (t.type != _selectedType) return false;
       }
 
-      // filtro valor
+      // filtro valor mínimo
       if (_minValue != null && t.amount < _minValue!) return false;
+
+      // filtro valor máximo
       if (_maxValue != null && t.amount > _maxValue!) return false;
 
       return true;
@@ -105,16 +107,14 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
     final saldo = receita - despesa;
 
-  
     final categories = <String>[
-        'Geral',
-        'Alimentação',
-        'Lazer',
-        'Salário',
-        'Moradia',
-        'Transporte',
-        'Educação',
-        'Saúde',
+      'Alimentação',
+      'Lazer',
+      'Salário',
+      'Moradia',
+      'Transporte',
+      'Educação',
+      'Saúde',
     ];
 
     return Scaffold(
@@ -139,13 +139,27 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
       ),
       body: Column(
         children: [
-          // Filtro período
+          // Filtro período com chips
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Wrap(
               spacing: 8,
               children: PeriodFilter.values.map((filter) {
-                final label = filter.name[0].toUpperCase() + filter.name.substring(1);
+                String label;
+                switch (filter) {
+                  case PeriodFilter.hoje:
+                    label = 'Hoje';
+                    break;
+                  case PeriodFilter.semana:
+                    label = 'Última Semana';
+                    break;
+                  case PeriodFilter.mes:
+                    label = 'Mês';
+                    break;
+                  case PeriodFilter.todos:
+                    label = 'Todos';
+                    break;
+                }
                 return FilterChip(
                   label: Text(label),
                   selected: _selectedPeriodFilter == filter,
@@ -155,40 +169,56 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             ),
           ),
 
-          // Filtros avançados
+          // Filtros avançados: Categoria, Tipo, Min, Max
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Wrap(
               spacing: 12,
               runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // Categoria
-                DropdownButton<String>(
-                  value: _selectedCategory ?? '',
-                  items: categories
-                      .map((c) => DropdownMenuItem(
-                            value: c,
-                            child: Text(c.isEmpty ? 'Todas Categorias' : c),
-                          ))
-                      .toList(),
+                // Categoria Dropdown
+                DropdownButton<String?>(
+                  value: _selectedCategory,
+                  hint: const Text('Todas Categorias'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Geral'),
+                    ),
+                    ...categories.map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c),
+                        )),
+                  ],
                   onChanged: (value) {
                     setState(() {
-                      _selectedCategory = value == '' ? null : value;
+                      _selectedCategory = value;
                     });
                   },
                 ),
 
-                // Tipo
-                DropdownButton<String>(
-                  value: _selectedType ?? '',
+                // Tipo Dropdown
+                DropdownButton<String?>(
+                  value: _selectedType,
+                  hint: const Text('Todos Tipos'),
                   items: const [
-                    DropdownMenuItem(value: '', child: Text('Todos Tipos')),
-                    DropdownMenuItem(value: 'receita', child: Text('Receita')),
-                    DropdownMenuItem(value: 'despesa', child: Text('Despesa')),
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Geral'),
+                    ),
+                    DropdownMenuItem<String?>(
+                      value: 'receita',
+                      child: Text('Receita'),
+                    ),
+                    DropdownMenuItem<String?>(
+                      value: 'despesa',
+                      child: Text('Despesa'),
+                    ),
                   ],
                   onChanged: (value) {
                     setState(() {
-                      _selectedType = value == '' ? null : value;
+                      _selectedType = value;
                     });
                   },
                 ),
@@ -253,20 +283,18 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                         child: ListTile(
                           title: Text(tx.title),
                           subtitle: Text(
-                              '${tx.category} - ${DateFormat('dd/MM/yyyy').format(tx.date)}'),
+                            '${tx.category} - ${DateFormat('dd/MM/yyyy').format(tx.date)}',
+                          ),
                           trailing: Text(
                             'R\$ ${tx.amount.toStringAsFixed(2)}',
                             style: TextStyle(
-                              color: tx.type == 'despesa'
-                                  ? Colors.red
-                                  : Colors.green,
+                              color:
+                                  tx.type == 'despesa' ? Colors.red : Colors.green,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           onLongPress: () {
-                            ref
-                                .read(transactionProvider.notifier)
-                                .delete(tx.id);
+                            ref.read(transactionProvider.notifier).delete(tx.id);
                           },
                         ),
                       );
