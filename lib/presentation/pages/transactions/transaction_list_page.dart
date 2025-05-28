@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gestao_despesas/presentation/pages/dashboard/dashboard_page.dart';
 
-import '../../../data/models/transaction_model.dart';  // Ajuste caminho conforme sua estrutura
+import '../../../data/models/transaction_model.dart';
 import '../../providers/transaction_provider.dart';
 import 'transaction_form.dart';
 
@@ -13,20 +13,26 @@ class TransactionListPage extends ConsumerStatefulWidget {
   const TransactionListPage({super.key});
 
   @override
-  ConsumerState<TransactionListPage> createState() =>
-      _TransactionListPageState();
+  ConsumerState<TransactionListPage> createState() => _TransactionListPageState();
 }
 
 class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   PeriodFilter _selectedPeriodFilter = PeriodFilter.todos;
-
-  String? _selectedCategory; // null significa sem filtro (Geral)
-  String? _selectedType; // null significa sem filtro (todos tipos)
+  String? _selectedCategory;
+  String? _selectedType;
   double? _minValue;
   double? _maxValue;
 
   final _minValueController = TextEditingController();
   final _maxValueController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(transactionProvider.notifier).generateRecurringTransactions();
+    });
+  }
 
   @override
   void dispose() {
@@ -39,40 +45,30 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
     final now = DateTime.now();
 
     return transactions.where((t) {
-      // filtro período
-      bool matchesPeriod = false;
+      bool matchesPeriod;
       switch (_selectedPeriodFilter) {
         case PeriodFilter.hoje:
-          matchesPeriod =
-              t.date.year == now.year && t.date.month == now.month && t.date.day == now.day;
+          matchesPeriod = t.date.year == now.year &&
+                          t.date.month == now.month &&
+                          t.date.day == now.day;
           break;
         case PeriodFilter.semana:
-          final weekAgo = now.subtract(const Duration(days: 7));
-          matchesPeriod = t.date.isAfter(weekAgo);
+          matchesPeriod = t.date.isAfter(now.subtract(const Duration(days: 7)));
           break;
         case PeriodFilter.mes:
-          matchesPeriod = t.date.year == now.year && t.date.month == now.month;
+          matchesPeriod = t.date.year == now.year &&
+                          t.date.month == now.month;
           break;
         case PeriodFilter.todos:
           matchesPeriod = true;
           break;
       }
+
       if (!matchesPeriod) return false;
 
-      // filtro categoria
-      if (_selectedCategory != null) {
-        if (t.category != _selectedCategory) return false;
-      }
-
-      // filtro tipo
-      if (_selectedType != null) {
-        if (t.type != _selectedType) return false;
-      }
-
-      // filtro valor mínimo
+      if (_selectedCategory != null && t.category != _selectedCategory) return false;
+      if (_selectedType != null && t.type != _selectedType) return false;
       if (_minValue != null && t.amount < _minValue!) return false;
-
-      // filtro valor máximo
       if (_maxValue != null && t.amount > _maxValue!) return false;
 
       return true;
@@ -94,7 +90,6 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
   @override
   Widget build(BuildContext context) {
     final transactions = ref.watch(transactionProvider);
-
     final filteredTransactions = _filterTransactions(transactions);
 
     final receita = filteredTransactions
@@ -107,7 +102,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
 
     final saldo = receita - despesa;
 
-    final categories = <String>[
+    final categories = [
       'Alimentação',
       'Lazer',
       'Salário',
@@ -139,7 +134,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
       ),
       body: Column(
         children: [
-          // Filtro período com chips
+          // Filtro período
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Wrap(
@@ -169,7 +164,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             ),
           ),
 
-          // Filtros avançados: Categoria, Tipo, Min, Max
+          // Filtros avançados
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: Wrap(
@@ -177,93 +172,50 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
               runSpacing: 12,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // Categoria Dropdown
                 DropdownButton<String?>(
                   value: _selectedCategory,
                   hint: const Text('Todas Categorias'),
                   items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Geral'),
+                    const DropdownMenuItem(value: null, child: Text('Geral')),
+                    ...categories.map(
+                      (c) => DropdownMenuItem(value: c, child: Text(c)),
                     ),
-                    ...categories.map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(c),
-                        )),
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedCategory = value;
-                    });
-                  },
+                  onChanged: (value) => setState(() => _selectedCategory = value),
                 ),
-
-                // Tipo Dropdown
                 DropdownButton<String?>(
                   value: _selectedType,
                   hint: const Text('Todos Tipos'),
                   items: const [
-                    DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Geral'),
-                    ),
-                    DropdownMenuItem<String?>(
-                      value: 'receita',
-                      child: Text('Receita'),
-                    ),
-                    DropdownMenuItem<String?>(
-                      value: 'despesa',
-                      child: Text('Despesa'),
-                    ),
+                    DropdownMenuItem(value: null, child: Text('Geral')),
+                    DropdownMenuItem(value: 'receita', child: Text('Receita')),
+                    DropdownMenuItem(value: 'despesa', child: Text('Despesa')),
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedType = value;
-                    });
-                  },
+                  onChanged: (value) => setState(() => _selectedType = value),
                 ),
-
-                // Min Valor
                 SizedBox(
                   width: 100,
                   child: TextField(
                     controller: _minValueController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Valor Mín',
-                      isDense: true,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _minValue = double.tryParse(value);
-                      });
-                    },
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Valor Mín', isDense: true),
+                    onChanged: (value) => setState(() => _minValue = double.tryParse(value)),
                   ),
                 ),
-
-                // Max Valor
                 SizedBox(
                   width: 100,
                   child: TextField(
                     controller: _maxValueController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Valor Máx',
-                      isDense: true,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _maxValue = double.tryParse(value);
-                      });
-                    },
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Valor Máx', isDense: true),
+                    onChanged: (value) => setState(() => _maxValue = double.tryParse(value)),
                   ),
                 ),
               ],
             ),
           ),
 
+          // Saldo
           Card(
             margin: const EdgeInsets.all(8),
             child: ListTile(
@@ -272,6 +224,7 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
             ),
           ),
 
+          // Lista de transações
           Expanded(
             child: filteredTransactions.isEmpty
                 ? const Center(child: Text('Nenhuma transação encontrada'))
@@ -288,19 +241,17 @@ class _TransactionListPageState extends ConsumerState<TransactionListPage> {
                           trailing: Text(
                             'R\$ ${tx.amount.toStringAsFixed(2)}',
                             style: TextStyle(
-                              color:
-                                  tx.type == 'despesa' ? Colors.red : Colors.green,
+                              color: tx.type == 'despesa' ? Colors.red : Colors.green,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          onLongPress: () {
-                            ref.read(transactionProvider.notifier).delete(tx.id);
-                          },
+                          onLongPress: () =>
+                              ref.read(transactionProvider.notifier).delete(tx.id),
                         ),
                       );
                     },
                   ),
-          )
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(

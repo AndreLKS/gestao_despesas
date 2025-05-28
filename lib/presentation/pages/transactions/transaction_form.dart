@@ -20,6 +20,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   String _category = 'Geral';
   String _type = 'despesa';
   DateTime _date = DateTime.now();
+  bool _isRecurring = false;
+  String? _recurrence;
 
   @override
   void dispose() {
@@ -66,6 +68,33 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   return null;
                 },
               ),
+                            
+              CheckboxListTile(
+                title: const Text('É uma transação recorrente?'),
+                value: _isRecurring,
+                onChanged: (value) {
+                  setState(() {
+                    _isRecurring = value ?? false;
+                    if (!_isRecurring) _recurrence = null;
+                  });
+                },
+              ),
+
+              if (_isRecurring)
+                DropdownButtonFormField<String>(
+                  value: _recurrence,
+                  decoration: const InputDecoration(labelText: 'Frequência'),
+                  items: const [
+                    DropdownMenuItem(value: 'mensal', child: Text('Mensal')),
+                    DropdownMenuItem(value: 'semanal', child: Text('Semanal')),
+                    DropdownMenuItem(value: 'anual', child: Text('Anual')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _recurrence = value;
+                    });
+                  },
+                ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _type,

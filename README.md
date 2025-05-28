@@ -26,10 +26,8 @@
   - [x] Por categoria
   - [x] Por tipo (receita/despesa)
   - [x] Por valor
-- [ ] Dashboard por categoria:
-  - [ ] PieChart ou BarChart
-- [ ] Recorrências:
-  - [ ] Contas fixas (ex.: aluguel, salário, assinaturas)
+- [x] Recorrências:
+  - [x] Contas fixas (ex.: aluguel, salário, assinaturas)
 - [ ] Planejamento financeiro:
   - [ ] Definir orçamento mensal por categoria
   - [ ] Alertas quando atingir ou ultrapassar o limite
